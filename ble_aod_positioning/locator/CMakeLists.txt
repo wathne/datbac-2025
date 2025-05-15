@@ -13,5 +13,6 @@ project(locator)
 target_sources(app PRIVATE
   src/main.c
   src/bt_addr_utils.c
+  src/chw1010_ant2_specs.c
 )
 # NORDIC SDK APP END
