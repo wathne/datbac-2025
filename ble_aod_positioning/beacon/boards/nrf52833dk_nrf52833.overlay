@@ -4,25 +4,60 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+/ {
+	antenna_switches: antenna-switches {
+		compatible = "gpio-leds";
+
+		/* Pin: 9, Purpose: D0, Description: AoDTX-mode enable.
+		 * For selecting between Normal-mode (LOW) and AoDTX-mode (HIGH).
+		 * Enable soft antenna switching (AoDTX-mode) to reduce unwanted
+		 * spectral emissions in AoD 2μs slot operation.
+		 * See "CHW1010 datasheet v1.0.pdf" (confidential).
+		 * See "CHW1010-ANT2-1.0_AoA_PCB_Control_Interface.pdf" (confidential).
+		 */
+		 switch0_aodtx_mode_enable: switch0-aodtx-mode-enable {
+			gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
+			label = "Antenna Switch 0 D0 AoDTX-mode Enable";
+		};
+
+		/* Pin: 10, Purpose: EN, Description: Chip enable.
+	 	 * See CoreHW CHW1010-ANT2-1.1 documentation.
+		 */
+		 switch0_chip_enable: switch0-chip-enable {
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+			label = "Antenna Switch 0 EN Chip Enable";
+		};
+	};
+};
+
 &radio {
 	status = "okay";
-	/* This is a number of antennas that are available on antenna matrix
-	 * designed by Nordic. For more information see README.rst.
+	/* This is a number of antennas that are available on a CoreHW
+	 * CHW1010-ANT2-1.1 antenna array board.
 	 */
-	dfe-antenna-num = <12>;
-	/* This is a setting that enables antenna 12 (in antenna matrix designed
-	 * by Nordic) for Tx PDU. For more information see README.rst.
+	dfe-antenna-num = <16>;
+	/* This is a setting that enables antenna 0 (on a CoreHW CHW1010-ANT2-1.1
+	 * antenna array board) for Tx PDU.
 	 */
 	dfe-pdu-antenna = <0x0>;
 
 	/* These are GPIO pin numbers that are provided to
 	 * Radio peripheral. The pins will be acquired by Radio to
 	 * drive antenna switching when AoD is enabled.
-	 * Pin numbers are selected to drive switches on antenna matrix
-	 * desinged by Nordic. For more information see README.rst.
+	 * Pin numbers are selected to drive the switch on a CoreHW
+	 * CHW1010-ANT2-1.1 antenna array board:
+	 * dfegpio0 -> 31 -> Pin: 5, Purpose: D1, Description: ANT_SEL0,
+	 * dfegpio1 -> 29 -> Pin: 7, Purpose: D2, Description: ANT_SEL1,
+	 * dfegpio2 -> 30 -> Pin: 6, Purpose: D3, Description: ANT_SEL2,
+	 * dfegpio3 -> 28 -> Pin: 8, Purpose: D4, Description: ANT_SEL3.
+	 * See CoreHW CHW1010-ANT2-1.1 documentation.
+	 * CoreHW CHW1010-ANT2-1.1 switch control is asynchronous, meaning that the
+	 * ANT_SEL pins direct the output antenna selection without any external
+	 * signal for synchronization. No strobe or latch.
+	 * See "CHW1010 datasheet v1.0.pdf" (confidential).
 	 */
-	dfegpio0-gpios = <&gpio0 3 0>;
-	dfegpio1-gpios = <&gpio0 4 0>;
-	dfegpio2-gpios = <&gpio0 28 0>;
-	dfegpio3-gpios = <&gpio0 29 0>;
+	dfegpio0-gpios = <&gpio0 31 0>;
+	dfegpio1-gpios = <&gpio0 29 0>;
+	dfegpio2-gpios = <&gpio0 30 0>;
+	dfegpio3-gpios = <&gpio0 28 0>;
 };

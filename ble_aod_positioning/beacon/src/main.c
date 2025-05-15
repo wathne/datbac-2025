@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <zephyr/kernel.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/printk.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
@@ -50,25 +51,325 @@ const static struct bt_le_per_adv_param per_adv_param = {
 	.options = BT_LE_ADV_OPT_USE_TX_POWER,
 };
 
-#if defined(CONFIG_BT_DF_CTE_TX_AOD)
-/* Example sequence of antenna switch patterns for antenna matrix designed by
- * Nordic. For more information about antenna switch patterns see README.rst.
+static const struct gpio_dt_spec aodtx_mode_enable =
+		GPIO_DT_SPEC_GET(DT_NODELABEL(switch0_aodtx_mode_enable), gpios);
+static const struct gpio_dt_spec chip_enable =
+		GPIO_DT_SPEC_GET(DT_NODELABEL(switch0_chip_enable), gpios);
+
+// Only use a single antenna?
+#define BT_CTLR_DF_AOD_ANT_SINGLE_MODE 0
+
+// Only use an antenna row?
+#define BT_CTLR_DF_AOD_ANT_ROW_MODE 0
+
+// Only use an antenna column?
+#define BT_CTLR_DF_AOD_ANT_COLUMN_MODE 0
+
+// Only use the outer antennas?
+#define BT_CTLR_DF_AOD_ANT_OUTER_MODE 0
+
+// Use all 16 antennas if none of the above antenna modes are set to 1.
+
+/* Sequence of antenna switch patterns for a CoreHW CHW1010-ANT2-1.1 antenna
+ * array board. A switch pattern is defined as an octet (8 bits). Each bit
+ * determines the state of a DFE GPIO connected to the RF switch on the antenna
+ * array board. Uniquely identifying 16 antennas requires a minimum of 4 bits.
+ * See the radio DTS properties in ../boards/nrf52833dk_nrf52833.overlay.
+ * See also Bluetooth Core Specification 5.4, Vol 6, Part A, Section 5.1.
+ * 
+ * See the "CONFIG_BT_CTLR_DF_MAX_ANT_SW_PATTERN_LEN=16" option in ../prj.conf.
+ * 
+ * The ant_patterns octets are committed to an underlying SWITCHPATTERN buffer.
+ * See the radio_df_ant_switch_pattern_set() function in
+ * zephyr/subsys/bluetooth/controller/ll_sw/nordic/hal/nrf5/radio/radio_df.c.
+ * 
+ * The following list is for the default sample spacing of 4 μs where CTEType
+ * field value is 2 for "AoD Constant Tone Extension with 2 μs slots":
  */
-static uint8_t ant_patterns[] = {0x2, 0x0, 0x5, 0x6, 0x1, 0x4, 0xC, 0x9, 0xE,
-				 0xD, 0x8, 0xA};
-#endif /* CONFIG_BT_DF_CTE_TX_AOD */
+#if BT_CTLR_DF_AOD_ANT_SINGLE_MODE
+/* CoreHW CHW1010-ANT2-1.1 antenna grid for a single antenna:
+ *  +----+----+----+----+
+ *  |    |    |    |    |
+ *  +----+----+----+----+
+ *  |    |    | 10 |    |
+ *  +----+----+----+----+
+ *  |    |    |    |    |
+ *  +----+----+----+----+
+ *  |    |    |    |    |
+ *  +----+----+----+----+
+ * 
+ * SWITCHPATTERN[0]  = 0x0,  radio.dfe-pdu-antenna,  idle period (PDU Tx/Rx).
+ * SWITCHPATTERN[1]  = 0xA,  ant_patterns[0],        guard and reference period.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],         1st sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],         2nd sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],         3rd sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],         4th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],         5th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],         6th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],         7th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],         8th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],         9th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        10th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        11th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        12th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        13th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        14th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        15th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        16th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        17th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        18th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        19th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        20th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        21st sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        22nd sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        23rd sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        24th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        25th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        26th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        27th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        28th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        29th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        30th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        31st sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        32nd sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        33rd sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        34th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        35th sample slot.
+ * SWITCHPATTERN[3]  = 0xA,  ant_patterns[0],        36th sample slot.
+ * SWITCHPATTERN[2]  = 0xA,  ant_patterns[1],        37th sample slot.
+ */
+static uint8_t ant_patterns[2] = {
+	0xA, 0xA
+};
+#elif BT_CTLR_DF_AOD_ANT_ROW_MODE
+/* CoreHW CHW1010-ANT2-1.1 antenna grid for an antenna row:
+ *  +----+----+----+----+
+ *  |    |    |    |    |
+ *  +----+----+----+----+
+ *  |    |    |    |    |
+ *  +----+----+----+----+
+ *  |    |    |    |    |
+ *  +----+----+----+----+
+ *  |  2 |  3 |  4 |  6 |
+ *  +----+----+----+----+
+ * 
+ * SWITCHPATTERN[0]  = 0x0,  radio.dfe-pdu-antenna,  idle period (PDU Tx/Rx).
+ * SWITCHPATTERN[1]  = 0x2,  ant_patterns[0],        guard and reference period.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],         1st sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],         2nd sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],         3rd sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],         4th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],         5th sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],         6th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],         7th sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],         8th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],         9th sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        10th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        11th sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        12th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        13th sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        14th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        15th sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        16th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        17th sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        18th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        19th sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        20th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        21st sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        22nd sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        23rd sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        24th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        25th sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        26th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        27th sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        28th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        29th sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        30th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        31st sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        32nd sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        33rd sample slot.
+ * SWITCHPATTERN[3]  = 0x4,  ant_patterns[2],        34th sample slot.
+ * SWITCHPATTERN[4]  = 0x6,  ant_patterns[3],        35th sample slot.
+ * SWITCHPATTERN[5]  = 0x2,  ant_patterns[0],        36th sample slot.
+ * SWITCHPATTERN[2]  = 0x3,  ant_patterns[1],        37th sample slot.
+ */
+static uint8_t ant_patterns[4] = {
+	0x2, 0x3, 0x4, 0x6
+};
+#elif BT_CTLR_DF_AOD_ANT_COLUMN_MODE
+/* CoreHW CHW1010-ANT2-1.1 antenna grid for an antenna column:
+ *  +----+----+----+----+
+ *  |    |    |    |  9 |
+ *  +----+----+----+----+
+ *  |    |    |    |  8 |
+ *  +----+----+----+----+
+ *  |    |    |    |  7 |
+ *  +----+----+----+----+
+ *  |    |    |    |  6 |
+ *  +----+----+----+----+
+ * 
+ * SWITCHPATTERN[0]  = 0x0,  radio.dfe-pdu-antenna,  idle period (PDU Tx/Rx).
+ * SWITCHPATTERN[1]  = 0x6,  ant_patterns[0],        guard and reference period.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],         1st sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],         2nd sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],         3rd sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],         4th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],         5th sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],         6th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],         7th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],         8th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],         9th sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        10th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        11th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        12th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        13th sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        14th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        15th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        16th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        17th sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        18th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        19th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        20th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        21st sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        22nd sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        23rd sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        24th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        25th sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        26th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        27th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        28th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        29th sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        30th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        31st sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        32nd sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        33rd sample slot.
+ * SWITCHPATTERN[3]  = 0x8,  ant_patterns[2],        34th sample slot.
+ * SWITCHPATTERN[4]  = 0x9,  ant_patterns[3],        35th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[0],        36th sample slot.
+ * SWITCHPATTERN[2]  = 0x7,  ant_patterns[1],        37th sample slot.
+ */
+static uint8_t ant_patterns[4] = {
+	0x6, 0x7, 0x8, 0x9
+};
+#elif BT_CTLR_DF_AOD_ANT_OUTER_MODE
+/* CoreHW CHW1010-ANT2-1.1 antenna grid for the outer antennas:
+ *  +----+----+----+----+
+ *  | 13 | 12 | 11 |  9 |
+ *  +----+----+----+----+
+ *  | 14 |    |    |  8 |
+ *  +----+----+----+----+
+ *  |  1 |    |    |  7 |
+ *  +----+----+----+----+
+ *  |  2 |  3 |  4 |  6 |
+ *  +----+----+----+----+
+ * 
+ * SWITCHPATTERN[0]  = 0x0,  radio.dfe-pdu-antenna,  idle period (PDU Tx/Rx).
+ * SWITCHPATTERN[1]  = 0x1,  ant_patterns[0],        guard and reference period.
+ * SWITCHPATTERN[2]  = 0x2,  ant_patterns[1],         1st sample slot.
+ * SWITCHPATTERN[3]  = 0x3,  ant_patterns[2],         2nd sample slot.
+ * SWITCHPATTERN[4]  = 0x4,  ant_patterns[3],         3rd sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[4],         4th sample slot.
+ * SWITCHPATTERN[6]  = 0x7,  ant_patterns[5],         5th sample slot.
+ * SWITCHPATTERN[7]  = 0x8,  ant_patterns[6],         6th sample slot.
+ * SWITCHPATTERN[8]  = 0x9,  ant_patterns[7],         7th sample slot.
+ * SWITCHPATTERN[9]  = 0xB,  ant_patterns[8],         8th sample slot.
+ * SWITCHPATTERN[10] = 0xC,  ant_patterns[9],         9th sample slot.
+ * SWITCHPATTERN[11] = 0xD,  ant_patterns[10],       10th sample slot.
+ * SWITCHPATTERN[12] = 0xE,  ant_patterns[11],       11th sample slot.
+ * SWITCHPATTERN[13] = 0x1,  ant_patterns[0],        12th sample slot.
+ * SWITCHPATTERN[2]  = 0x2,  ant_patterns[1],        13th sample slot.
+ * SWITCHPATTERN[3]  = 0x3,  ant_patterns[2],        14th sample slot.
+ * SWITCHPATTERN[4]  = 0x4,  ant_patterns[3],        15th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[4],        16th sample slot.
+ * SWITCHPATTERN[6]  = 0x7,  ant_patterns[5],        17th sample slot.
+ * SWITCHPATTERN[7]  = 0x8,  ant_patterns[6],        18th sample slot.
+ * SWITCHPATTERN[8]  = 0x9,  ant_patterns[7],        19th sample slot.
+ * SWITCHPATTERN[9]  = 0xB,  ant_patterns[8],        20th sample slot.
+ * SWITCHPATTERN[10] = 0xC,  ant_patterns[9],        21st sample slot.
+ * SWITCHPATTERN[11] = 0xD,  ant_patterns[10],       22nd sample slot.
+ * SWITCHPATTERN[12] = 0xE,  ant_patterns[11],       23rd sample slot.
+ * SWITCHPATTERN[13] = 0x1,  ant_patterns[0],        24th sample slot.
+ * SWITCHPATTERN[2]  = 0x2,  ant_patterns[1],        25th sample slot.
+ * SWITCHPATTERN[3]  = 0x3,  ant_patterns[2],        26th sample slot.
+ * SWITCHPATTERN[4]  = 0x4,  ant_patterns[3],        27th sample slot.
+ * SWITCHPATTERN[5]  = 0x6,  ant_patterns[4],        28th sample slot.
+ * SWITCHPATTERN[6]  = 0x7,  ant_patterns[5],        29th sample slot.
+ * SWITCHPATTERN[7]  = 0x8,  ant_patterns[6],        30th sample slot.
+ * SWITCHPATTERN[8]  = 0x9,  ant_patterns[7],        31st sample slot.
+ * SWITCHPATTERN[9]  = 0xB,  ant_patterns[8],        32nd sample slot.
+ * SWITCHPATTERN[10] = 0xC,  ant_patterns[9],        33rd sample slot.
+ * SWITCHPATTERN[11] = 0xD,  ant_patterns[10],       34th sample slot.
+ * SWITCHPATTERN[12] = 0xE,  ant_patterns[11],       35th sample slot.
+ * SWITCHPATTERN[13] = 0x1,  ant_patterns[0],        36th sample slot.
+ * SWITCHPATTERN[2]  = 0x2,  ant_patterns[1],        37th sample slot.
+ */
+static uint8_t ant_patterns[12] = {
+	0x1, 0x2, 0x3, 0x4, 0x6, 0x7, 0x8, 0x9,
+	0xB, 0xC, 0xD, 0xE
+};
+#else
+/* CoreHW CHW1010-ANT2-1.1 antenna grid for all antennas:
+ *  +----+----+----+----+
+ *  | 13 | 12 | 11 |  9 |
+ *  +----+----+----+----+
+ *  | 14 | 15 | 10 |  8 |
+ *  +----+----+----+----+
+ *  |  1 |  0 |  5 |  7 |
+ *  +----+----+----+----+
+ *  |  2 |  3 |  4 |  6 |
+ *  +----+----+----+----+
+ * 
+ * SWITCHPATTERN[0]  = 0x0,  radio.dfe-pdu-antenna,  idle period (PDU Tx/Rx).
+ * SWITCHPATTERN[1]  = 0x0,  ant_patterns[0],        guard and reference period.
+ * SWITCHPATTERN[2]  = 0x1,  ant_patterns[1],         1st sample slot.
+ * SWITCHPATTERN[3]  = 0x2,  ant_patterns[2],         2nd sample slot.
+ * SWITCHPATTERN[4]  = 0x3,  ant_patterns[3],         3rd sample slot.
+ * SWITCHPATTERN[5]  = 0x4,  ant_patterns[4],         4th sample slot.
+ * SWITCHPATTERN[6]  = 0x5,  ant_patterns[5],         5th sample slot.
+ * SWITCHPATTERN[7]  = 0x6,  ant_patterns[6],         6th sample slot.
+ * SWITCHPATTERN[8]  = 0x7,  ant_patterns[7],         7th sample slot.
+ * SWITCHPATTERN[9]  = 0x8,  ant_patterns[8],         8th sample slot.
+ * SWITCHPATTERN[10] = 0x9,  ant_patterns[9],         9th sample slot.
+ * SWITCHPATTERN[11] = 0xA,  ant_patterns[10],       10th sample slot.
+ * SWITCHPATTERN[12] = 0xB,  ant_patterns[11],       11th sample slot.
+ * SWITCHPATTERN[13] = 0xC,  ant_patterns[12],       12th sample slot.
+ * SWITCHPATTERN[14] = 0xD,  ant_patterns[13],       13th sample slot.
+ * SWITCHPATTERN[15] = 0xE,  ant_patterns[14],       14th sample slot.
+ * SWITCHPATTERN[16] = 0xF,  ant_patterns[15],       15th sample slot.
+ * SWITCHPATTERN[17] = 0x0,  ant_patterns[0],        16th sample slot.
+ * SWITCHPATTERN[2]  = 0x1,  ant_patterns[1],        17th sample slot.
+ * SWITCHPATTERN[3]  = 0x2,  ant_patterns[2],        18th sample slot.
+ * SWITCHPATTERN[4]  = 0x3,  ant_patterns[3],        19th sample slot.
+ * SWITCHPATTERN[5]  = 0x4,  ant_patterns[4],        20th sample slot.
+ * SWITCHPATTERN[6]  = 0x5,  ant_patterns[5],        21st sample slot.
+ * SWITCHPATTERN[7]  = 0x6,  ant_patterns[6],        22nd sample slot.
+ * SWITCHPATTERN[8]  = 0x7,  ant_patterns[7],        23rd sample slot.
+ * SWITCHPATTERN[9]  = 0x8,  ant_patterns[8],        24th sample slot.
+ * SWITCHPATTERN[10] = 0x9,  ant_patterns[9],        25th sample slot.
+ * SWITCHPATTERN[11] = 0xA,  ant_patterns[10],       26th sample slot.
+ * SWITCHPATTERN[12] = 0xB,  ant_patterns[11],       27th sample slot.
+ * SWITCHPATTERN[13] = 0xC,  ant_patterns[12],       28th sample slot.
+ * SWITCHPATTERN[14] = 0xD,  ant_patterns[13],       29th sample slot.
+ * SWITCHPATTERN[15] = 0xE,  ant_patterns[14],       30th sample slot.
+ * SWITCHPATTERN[16] = 0xF,  ant_patterns[15],       31st sample slot.
+ * SWITCHPATTERN[17] = 0x0,  ant_patterns[0],        32nd sample slot.
+ * SWITCHPATTERN[2]  = 0x1,  ant_patterns[1],        33rd sample slot.
+ * SWITCHPATTERN[3]  = 0x2,  ant_patterns[2],        34th sample slot.
+ * SWITCHPATTERN[4]  = 0x3,  ant_patterns[3],        35th sample slot.
+ * SWITCHPATTERN[5]  = 0x4,  ant_patterns[4],        36th sample slot.
+ * SWITCHPATTERN[6]  = 0x5,  ant_patterns[5],        37th sample slot.
+ */
+static uint8_t ant_patterns[16] = {
+	0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7,
+	0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF
+};
+#endif
 
 struct bt_df_adv_cte_tx_param cte_params = { .cte_len = CTE_LEN,
-					     .cte_count = PER_ADV_EVENT_CTE_COUNT,
-#if defined(CONFIG_BT_DF_CTE_TX_AOD)
-					     .cte_type = BT_DF_CTE_TYPE_AOD_2US,
-					     .num_ant_ids = ARRAY_SIZE(ant_patterns),
-					     .ant_ids = ant_patterns
-#else
-					     .cte_type = BT_DF_CTE_TYPE_AOA,
-					     .num_ant_ids = 0,
-					     .ant_ids = NULL
-#endif /* CONFIG_BT_DF_CTE_TX_AOD */
+										     .cte_count = PER_ADV_EVENT_CTE_COUNT,
+										     .cte_type = BT_DF_CTE_TYPE_AOD_2US,
+										     .num_ant_ids = ARRAY_SIZE(ant_patterns),
+										     .ant_ids = ant_patterns
 };
 
 static void adv_sent_cb(struct bt_le_ext_adv *adv,
@@ -85,6 +386,46 @@ int main(void)
 	int err;
 
 	printk("Starting Connectionless Beacon Demo\n");
+
+	printk("Antenna Switch 0 D0 AoDTX-mode Enable GPIO initialization...");
+	if (!gpio_is_ready_dt(&aodtx_mode_enable)) {
+		printk("failed (AoDTX-mode Enable GPIO spec is not ready for use.)\n");
+		return 0;
+	}
+	err = gpio_pin_configure_dt(&aodtx_mode_enable, GPIO_OUTPUT_INACTIVE);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Antenna Switch 0 EN Chip Enable GPIO initialization...");
+	if (!gpio_is_ready_dt(&chip_enable)) {
+		printk("failed (Chip Enable GPIO spec is not ready for use.)\n");
+		return 0;
+	}
+	err = gpio_pin_configure_dt(&chip_enable, GPIO_OUTPUT_INACTIVE);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Enable AoDTX-mode...");
+	err = gpio_pin_set_dt(&aodtx_mode_enable, 1);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Enable antenna switch...");
+	err = gpio_pin_set_dt(&chip_enable, 1);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
 
 	/* Initialize the Bluetooth Subsystem */
 	printk("Bluetooth initialization...");
