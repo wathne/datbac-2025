@@ -12,5 +12,6 @@ project(locator)
 # NORDIC SDK APP START
 target_sources(app PRIVATE
   src/main.c
+  src/bt_addr_utils.c
 )
 # NORDIC SDK APP END
