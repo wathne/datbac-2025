@@ -16,5 +16,6 @@ target_sources(app PRIVATE
   src/chw1010_ant2_specs.c
   src/ble_channel_constants.c
   src/directional_statistics.c
+  src/beacon.c
 )
 # NORDIC SDK APP END
