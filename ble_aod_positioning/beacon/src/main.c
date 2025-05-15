@@ -35,7 +35,7 @@ const static struct bt_le_ext_adv_cb adv_callbacks = {
 static struct bt_le_ext_adv *adv_set;
 
 const static struct bt_le_adv_param param =
-		BT_LE_ADV_PARAM_INIT(BT_LE_ADV_OPT_EXT_ADV,
+		BT_LE_ADV_PARAM_INIT(BT_LE_ADV_OPT_EXT_ADV | BT_LE_ADV_OPT_USE_IDENTITY,
 				     BT_GAP_ADV_FAST_INT_MIN_2,
 				     BT_GAP_ADV_FAST_INT_MAX_2,
 				     NULL);
