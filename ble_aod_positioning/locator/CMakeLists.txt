@@ -17,5 +17,6 @@ target_sources(app PRIVATE
   src/ble_channel_constants.c
   src/directional_statistics.c
   src/beacon.c
+  src/beacon_database.c
 )
 # NORDIC SDK APP END
