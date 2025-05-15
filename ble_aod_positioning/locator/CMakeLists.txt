@@ -18,5 +18,6 @@ target_sources(app PRIVATE
   src/directional_statistics.c
   src/beacon.c
   src/beacon_database.c
+  src/locator.c
 )
 # NORDIC SDK APP END
