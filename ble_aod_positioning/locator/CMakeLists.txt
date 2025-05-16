@@ -19,5 +19,6 @@ target_sources(app PRIVATE
   src/beacon.c
   src/beacon_database.c
   src/locator.c
+  src/iq_data.c
 )
 # NORDIC SDK APP END
