@@ -11,6 +11,41 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/direction.h>
 
+#include <zephyr/sys/printk.h> // For printk().
+
+#include "beacon.h"
+#include "beacon_database.h"
+#include "bt_addr_utils.h" // For BT_ADDR_SIZE (6).
+#include "iq_data.h"
+#include "iq_data_work_queue.h"
+#include "locator.h"
+
+// TODO(wathne): Revise all #include directives, with comments.
+
+// TODO(wathne): Implement a per_adv_context_manager to manage when to sync to
+// known beacons and when to scan for new beacons. Responses will include
+// enumerated actions, for example 0 ~ "stop syncing and start scanning", and
+// 1 ~ "stop scanning and start syncing".
+
+// NOTE(wathne): This main.c file has intentionally been reverted to a version
+// that is minimally different from the initial BLE AoD connectionless receiver
+// sample. "git diff" and "git difftool" will reveal minimally invasive
+// additions to the initial sample code. Tabular indentation has also been
+// preserved to avoid artifical differences. This aims to make it easy to
+// contrast this version against the initial sample code. Maybe this will be
+// appreciated by the next person working on this code. Unfortunately, this
+// version is not able to properly cycle between beacons. It tends to sync to
+// the same beacon indefinitely. It will repeatedly calculate direction cosines,
+// azimuth, and elevation from the first beacon it encounters, but it will not
+// be able to calculate a locator position without direction cosines from a
+// second beacon. The locator can be tricked into syncing with a second beacon
+// by power cycling both beacons. Each beacon transition will result in a new
+// locator position. There has been a version of main.c capable of cycling
+// between beacons, but that version was rushed in preparation of a simple
+// proof-of-concept demonstration. The rushed modifications were reverted
+// beacuse they were not appropriate for the longterm development of the
+// locator.
+
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 #define PEER_NAME_LEN_MAX 30
@@ -21,6 +56,9 @@
 #define SYNC_CREATE_TIMEOUT_INTERVAL_NUM 7
 /* Maximum length of advertising data represented in hexadecimal format */
 #define ADV_DATA_HEX_STR_LEN_MAX (BT_GAP_ADV_MAX_EXT_ADV_DATA_LEN * 2 + 1)
+
+// IQ data work queue.
+static struct iq_data_work_queue iq_data_work_queue;
 
 static struct bt_le_per_adv_sync *sync;
 static bt_addr_le_t per_addr;
@@ -143,11 +181,51 @@ static void recv_cb(struct bt_le_per_adv_sync *sync,
 static void cte_recv_cb(struct bt_le_per_adv_sync *sync,
 			struct bt_df_per_adv_sync_iq_samples_report const *report)
 {
+	// Timestamp of when the IQ samples report arrived in this cte_recv_cb()
+	// callback function. Elapsed time since the system booted, in milliseconds.
+	int64_t report_timestamp = k_uptime_get();
+
+	struct bt_le_per_adv_sync_info info;
+
+	printk("Retrieving Periodic Advertising Sync Info...");
+	int err = bt_le_per_adv_sync_get_info(sync, &info);
+	if (err) {
+		printk("failed (err %d)\n", err);
+	}
+	printk("success\n");
+
+	char addr_s[BT_ADDR_LE_STR_LEN];
+	bt_addr_le_to_str(&info.addr, addr_s, sizeof(addr_s));
+	printk("Periodic Advertiser Address: %s\n", addr_s);
+	//printk("Advertiser SID: %u\n", info.sid);
+	//printk("Advertiser PHY: %u\n", info.phy);
+	//printk("Periodic advertising interval (N * 1.25 ms): %u\n", info.interval);
+
+	printk("Channel index: %u\n", report->chan_idx);
+
+	/*
 	printk("CTE[%u]: samples count %d, cte type %s, slot durations: %u [us], "
 	       "packet status %s, RSSI %i\n",
 	       bt_le_per_adv_sync_get_index(sync), report->sample_count,
 	       cte_type2str(report->cte_type), report->slot_durations,
 	       packet_status2str(report->packet_status), report->rssi);
+	*/
+
+	// Intermediate structure for raw IQ samples extracted from an IQ samples
+	// report.
+	struct iq_raw_samples iq_raw_samples;
+
+	// Initialize the raw IQ samples structure from the IQ samples report.
+	iq_raw_samples_init(&iq_raw_samples, report, &info, report_timestamp);
+
+	// Submit the raw IQ samples structure to the IQ data work queue.
+	// This is a specialized work queue with LIFO processing and FIFO eviction.
+	// The work queue is unfair and will process the most recently submitted
+	// work first (LIFO processing). It is expected that more work will be
+	// submitted to the work queue than the work queue is able to process. The
+	// oldest work will be evicted from the work queue when the work queue is
+	// full (FIFO eviction).
+	iq_data_work_queue_submit(&iq_data_work_queue, &iq_raw_samples);
 }
 
 static struct bt_le_per_adv_sync_cb sync_callbacks = {
@@ -314,6 +392,130 @@ int main(void)
 	int err;
 
 	printk("Starting Connectionless Locator Demo\n");
+
+	printk("Initializing global beacon database...");
+	err = beacon_database_init_global();
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	// TODO(wathne): Populating the beacon database with beacon data from within
+	// this main() function is a temporary solution. Beacon data for the beacon
+	// database should instead be sourced from a local file or from an external
+	// server.
+
+	// Beacon 1, 1050638918, F6:66:CD:FD:DC:EB.
+	printk("Initializing beacon 1 struct (1050638918, F6:66:CD:FD:DC:EB)...");
+	struct beacon beacon_1;
+	uint8_t beacon_1_mac[BT_ADDR_SIZE] = {0xF6, 0x66, 0xCD, 0xFD, 0xDC, 0xEB};
+	err = beacon_init(&beacon_1, beacon_1_mac, 10, 0, 0, 0, 0, 0);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Adding beacon 1 struct to global beacon database...");
+	err = beacon_database_put(&g_beacon_db, &beacon_1);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	// TODO(wathne): The debugger on Beacon 2 has become unresponsive. It may be
+	// possible to flash Beacon 2 from another NRF52833DK. Beacon 2 is currently
+	// decomissioned.
+	// Beacon 2, 1050625843, CE:96:F5:15:D2:45.
+	printk("Initializing beacon 2 struct (1050625843, CE:96:F5:15:D2:45)...");
+	struct beacon beacon_2;
+	uint8_t beacon_2_mac[BT_ADDR_SIZE] = {0xCE, 0x96, 0xF5, 0x15, 0xD2, 0x45};
+	err = beacon_init(&beacon_2, beacon_2_mac, 0, 0, 0, 0, 0, 0);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Adding beacon 2 struct to global beacon database...");
+	err = beacon_database_put(&g_beacon_db, &beacon_2);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	// Beacon 3,  685689749, D5:55:32:1F:94:9F.
+	printk("Initializing beacon 3 struct ( 685689749, D5:55:32:1F:94:9F)...");
+	struct beacon beacon_3;
+	uint8_t beacon_3_mac[BT_ADDR_SIZE] = {0xD5, 0x55, 0x32, 0x1F, 0x94, 0x9F};
+	err = beacon_init(&beacon_3, beacon_3_mac, 0, 0, 0, 0, 0, 0);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Adding beacon 3 struct to global beacon database...");
+	err = beacon_database_put(&g_beacon_db, &beacon_3);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	// Beacon 1, 1050638918, F6:66:CD:FD:DC:EB.
+	// Beacon 2, 1050625843, CE:96:F5:15:D2:45.
+	// Beacon 3,  685689749, D5:55:32:1F:94:9F.
+	printk("Printing global beacon database entries:\n");
+	struct beacon beacon_temp;
+	uint8_t beacons_mac_big_endian[3][6] = {
+			{0xF6, 0x66, 0xCD, 0xFD, 0xDC, 0xEB},
+			{0xCE, 0x96, 0xF5, 0x15, 0xD2, 0x45},
+			{0xD5, 0x55, 0x32, 0x1F, 0x94, 0x9F}};
+	uint8_t beacons_mac_little_endian[3][6] = {
+			{0xEB, 0xDC, 0xFD, 0xCD, 0x66, 0xF6},
+			{0x45, 0xD2, 0x15, 0xF5, 0x96, 0xCE},
+			{0x9F, 0x94, 0x1F, 0x32, 0x55, 0xD5}};
+	for (int i = 0; i < 3; i++) {
+		beacon_database_get(
+				&g_beacon_db,
+				&beacon_temp,
+				beacons_mac_little_endian[i]);
+		printk(
+				"mac = %02X:%02X:%02X:%02X:%02X:%02X\n"
+				"\n"
+				"(x, y, z) = (%.2f, %.2f, %.2f)\n"
+				"\n"
+				"    [ i_x j_x k_x ]   [ %6.2f %6.2f %6.2f ]\n"
+				"R = [ i_y j_y k_y ] = [ %6.2f %6.2f %6.2f ]\n"
+				"    [ i_z j_z k_z ]   [ %6.2f %6.2f %6.2f ]\n"
+				"\n",
+				beacon_temp.mac_big_endian[0], beacon_temp.mac_big_endian[1],
+				beacon_temp.mac_big_endian[2], beacon_temp.mac_big_endian[3],
+				beacon_temp.mac_big_endian[4], beacon_temp.mac_big_endian[5],
+				beacon_temp.x, beacon_temp.y, beacon_temp.z,
+				beacon_temp.i_x, beacon_temp.j_x, beacon_temp.k_x,
+				beacon_temp.i_y, beacon_temp.j_y, beacon_temp.k_y,
+				beacon_temp.i_z, beacon_temp.j_z, beacon_temp.k_z);
+	}
+
+	printk("Initializing global locator with global beacon database...");
+	err = locator_init_global(&g_beacon_db);
+	if (err) {
+		printk("failed (err %d)\n", err);
+		return 0;
+	}
+	printk("success\n");
+
+	printk("Initializing work queue with LIFO processing and FIFO eviction...");
+	iq_data_work_queue_init(
+			&iq_data_work_queue,
+			&k_sys_work_q,
+			iq_data_process);
+	printk("success\n");
 
 	printk("Bluetooth initialization...");
 	err = bt_enable(NULL);
