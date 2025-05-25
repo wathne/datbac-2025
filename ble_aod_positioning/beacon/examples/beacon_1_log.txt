@@ -1,0 +1,16 @@
+*** Booting nRF Connect SDK v2.9.0-7787b2649840 ***
+*** Using Zephyr OS v3.7.99-1f8f3dc29142 ***
+Starting Connectionless Beacon Demo
+Antenna Switch 0 D0 AoDTX-mode Enable GPIO initialization...success
+Antenna Switch 0 EN Chip Enable GPIO initialization...success
+Enable AoDTX-mode...success
+Enable antenna switch...success
+Bluetooth initialization...success
+Advertising set create...success
+Set advertising data...success
+Update CTE params...success
+Periodic advertising params set...success
+Enable CTE...success
+Periodic advertising enable...success
+Extended advertising enable...success
+Started extended advertising as F6:66:CD:FD:DC:EB (random)

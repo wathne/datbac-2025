@@ -1,0 +1,42 @@
+*** Booting nRF Connect SDK v2.9.0-7787b2649840 ***
+*** Using Zephyr OS v3.7.99-1f8f3dc29142 ***
+Starting Connectionless Locator Demo
+Initializing global beacon database...success
+Initializing beacon 1 struct (1050638918, F6:66:CD:FD:DC:EB)...success
+Adding beacon 1 struct to global beacon database...success
+Initializing beacon 2 struct (1050625843, CE:96:F5:15:D2:45)...success
+Adding beacon 2 struct to global beacon database...success
+Initializing beacon 3 struct (685689749, D5:55:32:1F:94:9F)...success
+Adding beacon 3 struct to global beacon database...success
+Printing global beacon database entries:
+mac = F6:66:CD:FD:DC:EB
+
+(x, y, z) = (10.00, 0.00, 0.00)
+
+    [ i_x j_x k_x ]   [ 1.00 0.00 0.00 ]
+R = [ i_y j_y k_y ] = [ 0.00 1.00 0.00 ]
+    [ i_z j_z k_z ]   [ -0.00 0.00 1.00 ]
+
+mac = CE:96:F5:15:D2:45
+
+(x, y, z) = (0.00, 0.00, 0.00)
+
+    [ i_x j_x k_x ]   [ 1.00 0.00 0.00 ]
+R = [ i_y j_y k_y ] = [ 0.00 1.00 0.00 ]
+    [ i_z j_z k_z ]   [ -0.00 0.00 1.00 ]
+
+mac = D5:55:32:1F:94:9F
+
+(x, y, z) = (0.00, 0.00, 0.00)
+
+    [ i_x j_x k_x ]   [ 1.00 0.00 0.00 ]
+R = [ i_y j_y k_y ] = [ 0.00 1.00 0.00 ]
+    [ i_z j_z k_z ]   [ -0.00 0.00 1.00 ]
+
+Initializing global locator with global beacon database...success
+Initializing work queue with LIFO processing and FIFO eviction...success
+Bluetooth initialization...success
+Scan callbacks register...success.
+Periodic Advertising callbacks register...success.
+Start scanning...success
+Waiting for periodic advertising...
