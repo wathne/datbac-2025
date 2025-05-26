@@ -107,7 +107,7 @@ float directional_statistics_circular_mean(
         for (int i = 0; i < angles_count; i++) {
             epsilon = angles[i] - intrinsic_mean;
 
-            // Unwrap epsilon if absolute value is greater than pi, that is,
+            // Wrap epsilon if absolute value is greater than pi, that is,
             // if epsilon is not within [-pi, pi]. This ensures the shortest
             // angular distance from the current intrinsic mean.
             if (epsilon > M_PI) {
@@ -126,7 +126,7 @@ float directional_statistics_circular_mean(
                 sum_sin_epsilon,
                 sum_cos_epsilon);
 
-        // Unwrap intrinsic mean if absolute value is greater than pi, that is,
+        // Wrap intrinsic mean if absolute value is greater than pi, that is,
         // if intrinsic mean is not within [-pi, pi].
         if (intrinsic_mean > M_PI) {
             intrinsic_mean = intrinsic_mean - 2 * M_PI;
