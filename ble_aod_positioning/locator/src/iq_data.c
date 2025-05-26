@@ -495,42 +495,42 @@ static void iq_data_aod_row_interferometry(struct iq_data *iq_data) {
         uint8_t index_2;
         uint8_t direction;
     } measurement_pairs[27] = {
-        { 0,  1, 0}, // left to right
-        { 1,  2, 0}, // left to right
+        { 0,  1, 0}, // left to right, antennas (3, 4).
+        { 1,  2, 0}, // left to right, antennas (4, 6).
 
-        { 3,  4, 0}, // left to right
-        { 4,  5, 0}, // left to right
-        { 5,  6, 0}, // left to right
+        { 3,  4, 0}, // left to right, antennas (2, 3).
+        { 4,  5, 0}, // left to right, antennas (3, 4).
+        { 5,  6, 0}, // left to right, antennas (4, 6).
 
-        { 7,  8, 0}, // left to right
-        { 8,  9, 0}, // left to right
-        { 9, 10, 0}, // left to right
+        { 7,  8, 0}, // left to right, antennas (2, 3).
+        { 8,  9, 0}, // left to right, antennas (3, 4).
+        { 9, 10, 0}, // left to right, antennas (4, 6).
 
-        {11, 12, 0}, // left to right
-        {12, 13, 0}, // left to right
-        {13, 14, 0}, // left to right
+        {11, 12, 0}, // left to right, antennas (2, 3).
+        {12, 13, 0}, // left to right, antennas (3, 4).
+        {13, 14, 0}, // left to right, antennas (4, 6).
 
-        {15, 16, 0}, // left to right
-        {16, 17, 0}, // left to right
-        {17, 18, 0}, // left to right
+        {15, 16, 0}, // left to right, antennas (2, 3).
+        {16, 17, 0}, // left to right, antennas (3, 4).
+        {17, 18, 0}, // left to right, antennas (4, 6).
 
-        {19, 20, 0}, // left to right
-        {20, 21, 0}, // left to right
-        {21, 22, 0}, // left to right
+        {19, 20, 0}, // left to right, antennas (2, 3).
+        {20, 21, 0}, // left to right, antennas (3, 4).
+        {21, 22, 0}, // left to right, antennas (4, 6).
 
-        {23, 24, 0}, // left to right
-        {24, 25, 0}, // left to right
-        {25, 26, 0}, // left to right
+        {23, 24, 0}, // left to right, antennas (2, 3).
+        {24, 25, 0}, // left to right, antennas (3, 4).
+        {25, 26, 0}, // left to right, antennas (4, 6).
 
-        {27, 28, 0}, // left to right
-        {28, 29, 0}, // left to right
-        {29, 30, 0}, // left to right
+        {27, 28, 0}, // left to right, antennas (2, 3).
+        {28, 29, 0}, // left to right, antennas (3, 4).
+        {29, 30, 0}, // left to right, antennas (4, 6).
 
-        {31, 32, 0}, // left to right
-        {32, 33, 0}, // left to right
-        {33, 34, 0}, // left to right
+        {31, 32, 0}, // left to right, antennas (2, 3).
+        {32, 33, 0}, // left to right, antennas (3, 4).
+        {33, 34, 0}, // left to right, antennas (4, 6).
 
-        {35, 36, 0}  // left to right
+        {35, 36, 0}  // left to right, antennas (2, 3).
     };
 
     static const int measurement_pairs_length =
@@ -915,38 +915,38 @@ static void iq_data_aod_interferometry(struct iq_data *iq_data) {
         uint8_t index_2;
         uint8_t direction;
     } measurement_pairs[32] = {
-        { 0,  1, 3}, // top to bottom
-        { 1,  2, 0}, // left to right
-        { 2,  3, 0}, // left to right
-        { 3,  4, 2}, // bottom to top
-        { 5,  6, 2}, // bottom to top
-        { 6,  7, 2}, // bottom to top
-        { 7,  8, 2}, // bottom to top
-        { 9, 10, 2}, // bottom to top
-        {10, 11, 1}, // right to left
-        {11, 12, 1}, // right to left
-        {12, 13, 3}, // top to bottom
-        {13, 14, 0}, // left to right
-        {14, 15, 3}, // top to bottom
-        {15, 16, 1}, // right to left
-        {16, 17, 3}, // top to bottom
-        {17, 18, 0}, // left to right
-        {18, 19, 0}, // left to right
-        {19, 20, 2}, // bottom to top
-        {21, 22, 2}, // bottom to top
-        {22, 23, 2}, // bottom to top
-        {23, 24, 2}, // bottom to top
-        {25, 26, 2}, // bottom to top
-        {26, 27, 1}, // right to left
-        {27, 28, 1}, // right to left
-        {28, 29, 3}, // top to bottom
-        {29, 30, 0}, // left to right
-        {30, 31, 3}, // top to bottom
-        {31, 32, 1}, // right to left
-        {32, 33, 3}, // top to bottom
-        {33, 34, 0}, // left to right
-        {34, 35, 0}, // left to right
-        {35, 36, 2}  // bottom to top
+        { 0,  1, 3}, // top to bottom, antennas ( 1,  2).
+        { 1,  2, 0}, // left to right, antennas ( 2,  3).
+        { 2,  3, 0}, // left to right, antennas ( 3,  4).
+        { 3,  4, 2}, // bottom to top, antennas ( 4,  5).
+        { 5,  6, 2}, // bottom to top, antennas ( 6,  7).
+        { 6,  7, 2}, // bottom to top, antennas ( 7,  8).
+        { 7,  8, 2}, // bottom to top, antennas ( 8,  9).
+        { 9, 10, 2}, // bottom to top, antennas (10, 11).
+        {10, 11, 1}, // right to left, antennas (11, 12).
+        {11, 12, 1}, // right to left, antennas (12, 13).
+        {12, 13, 3}, // top to bottom, antennas (13, 14).
+        {13, 14, 0}, // left to right, antennas (14, 15).
+        {14, 15, 3}, // top to bottom, antennas (15,  0).
+        {15, 16, 1}, // right to left, antennas ( 0,  1).
+        {16, 17, 3}, // top to bottom, antennas ( 1,  2).
+        {17, 18, 0}, // left to right, antennas ( 2,  3).
+        {18, 19, 0}, // left to right, antennas ( 3,  4).
+        {19, 20, 2}, // bottom to top, antennas ( 4,  5).
+        {21, 22, 2}, // bottom to top, antennas ( 6,  7).
+        {22, 23, 2}, // bottom to top, antennas ( 7,  8).
+        {23, 24, 2}, // bottom to top, antennas ( 8,  9).
+        {25, 26, 2}, // bottom to top, antennas (10, 11).
+        {26, 27, 1}, // right to left, antennas (11, 12).
+        {27, 28, 1}, // right to left, antennas (12, 13).
+        {28, 29, 3}, // top to bottom, antennas (13, 14).
+        {29, 30, 0}, // left to right, antennas (14, 15).
+        {30, 31, 3}, // top to bottom, antennas (15,  0).
+        {31, 32, 1}, // right to left, antennas ( 0,  1).
+        {32, 33, 3}, // top to bottom, antennas ( 1,  2).
+        {33, 34, 0}, // left to right, antennas ( 2,  3).
+        {34, 35, 0}, // left to right, antennas ( 3,  4).
+        {35, 36, 2}  // bottom to top, antennas ( 4,  5).
     };
 
     static const int measurement_pairs_length =
